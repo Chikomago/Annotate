@@ -34,7 +34,7 @@ jobs:
         run: |
           python_home="$("$(uv python find 3.10 --managed-python)" -c 'import sys; print(sys.prefix)')"
           python3 scripts/prepare-ci-resources.py --python-home "$python_home"
-          uv pip install --python src-tauri/resources/python/bin/python3 --system -r requirements.txt
+          uv pip install --python src-tauri/resources/python/bin/python3 --target src-tauri/resources/python/lib/python3.10/site-packages -r requirements.txt
           src-tauri/resources/python/bin/python3 -c 'import flask, PIL, psd_tools, docx, numpy'
       - name: Prepare app resources (Windows)
         if: runner.os == 'Windows'
@@ -43,7 +43,7 @@ jobs:
           $pythonExe = (uv python find 3.10 --managed-python).Trim()
           $pythonHome = & $pythonExe -c 'import sys; print(sys.prefix)'
           python scripts/prepare-ci-resources.py --python-home $pythonHome
-          uv pip install --python src-tauri/resources/python/python.exe --system -r requirements.txt
+          uv pip install --python src-tauri/resources/python/python.exe --target src-tauri/resources/python/Lib/site-packages -r requirements.txt
           src-tauri/resources/python/python.exe -c 'import flask, PIL, psd_tools, docx, numpy'
       - name: Install Tauri CLI
         run: npm install --global "@tauri-apps/cli@^2"
