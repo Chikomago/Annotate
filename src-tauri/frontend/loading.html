@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Annotate</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #101922;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        .container {
+            width: 380px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: block;
+            margin: 0 auto 16px;
+            box-shadow: 0 4px 16px rgba(19, 127, 236, 0.3);
+        }
+        h1 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+        .version { font-size: 12px; color: #637588; text-align: center; margin-bottom: 24px; }
+
+        /* Status indicator */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #1a222d;
+            border: 1px solid #283039;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.running { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.5); }
+        .status-dot.starting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+        .status-dot.stopped { background: #6b7280; }
+        .status-dot.error { background: #ef4444; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .status-info { flex: 1; }
+        .status-label { font-size: 13px; font-weight: 600; }
+        .status-detail { font-size: 11px; color: #637588; margin-top: 2px; }
+
+        /* Buttons */
+        .btn-group { display: flex; flex-direction: column; gap: 8px; }
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn svg { width: 16px; height: 16px; }
+        .btn-primary { background: #137fec; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #0e6ad4; }
+        .btn-success { background: #059669; color: white; }
+        .btn-success:hover:not(:disabled) { background: #047857; }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.25); }
+        .btn-secondary { background: rgba(255,255,255,0.06); color: #9dabb9; border: 1px solid #283039; }
+        .btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn { flex: 1; }
+
+        .divider { border: none; border-top: 1px solid #283039; margin: 16px 0 10px; }
+        .section-title { font-size: 11px; font-weight: 600; color: #637588; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+        /* Log area */
+        .log-area {
+            background: #0d1117;
+            border: 1px solid #283039;
+            border-radius: 8px;
+            padding: 10px 12px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 11px;
+            line-height: 1.6;
+            color: #637588;
+        }
+        .log-area::-webkit-scrollbar { width: 4px; }
+        .log-area::-webkit-scrollbar-thumb { background: #283039; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img class="logo" src="icon.png" alt="Annotate" />
+        <h1>Annotate 启动器</h1>
+        <p style="font-size:12px;color:#637588;text-align:center;margin-bottom:24px;">服务地址: http://127.0.0.1:5008</p>
+
+        <!-- Status -->
+        <div class="status-row">
+            <div class="status-dot starting" id="status-dot"></div>
+            <div class="status-info">
+                <div class="status-label" id="status-label">正在启动...</div>
+                <div class="status-detail" id="status-detail">端口 5008</div>
+            </div>
+        </div>
+
+        <!-- Main actions -->
+        <div class="btn-group">
+            <button class="btn btn-primary" id="btn-open" onclick="handleOpen()" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+                在浏览器中打开
+            </button>
+            <div class="btn-row">
+                <button class="btn btn-success" id="btn-start" onclick="handleStart()" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
+                    启动服务
+                </button>
+                <button class="btn btn-danger" id="btn-stop" onclick="handleStop()" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                    停止服务
+                </button>
+            </div>
+        </div>
+
+        <hr class="divider" />
+        <p class="section-title">日志</p>
+        <div class="log-area" id="log-area">
+            <div>正在初始化...</div>
+        </div>
+
+    </div>
+
+    <script>
+        const FLASK_PORT = 5008;
+        const FLASK_URL = `http://127.0.0.1:${FLASK_PORT}`;
+        const HEALTH_URL = `${FLASK_URL}/api/health`;
+        let healthTimer = null;
+
+        function log(msg) {
+            const area = document.getElementById('log-area');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            area.innerHTML += `<div><span style="color:#4b5563">[${time}]</span> ${msg}</div>`;
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function setStatus(state, label, detail) {
+            const dot = document.getElementById('status-dot');
+            dot.className = 'status-dot ' + state;
+            document.getElementById('status-label').textContent = label;
+            if (detail) document.getElementById('status-detail').textContent = detail;
+        }
+
+        function setButtonStates(state) {
+            // state: 'running' | 'stopped' | 'starting' | 'error'
+            const btnOpen = document.getElementById('btn-open');
+            const btnStart = document.getElementById('btn-start');
+            const btnStop = document.getElementById('btn-stop');
+            btnOpen.disabled = state !== 'running';
+            btnStart.disabled = state === 'running' || state === 'starting';
+            btnStop.disabled = state !== 'running';
+        }
+
+        async function checkHealth() {
+            try {
+                const resp = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(2000) });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    return data.status === 'ok';
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        async function pollHealth() {
+            if (await checkHealth()) {
+                setStatus('running', '服务运行中', '端口 5008 · 就绪');
+                setButtonStates('running');
+                return true;
+            }
+            return false;
+        }
+
+        async function startPolling() {
+            if (healthTimer) clearInterval(healthTimer);
+            let count = 0;
+            healthTimer = setInterval(async () => {
+                if (await pollHealth()) {
+                    log('服务已就绪');
+                    clearInterval(healthTimer);
+                    healthTimer = null;
+                    return;
+                }
+                count++;
+                if (count > 30) {
+                    clearInterval(healthTimer);
+                    healthTimer = null;
+                    setStatus('error', '启动超时', '请检查日志');
+                    setButtonStates('error');
+                    log('<span style="color:#ef4444">启动超时，请尝试重启应用</span>');
+                }
+            }, 1000);
+        }
+
+        async function handleOpen() {
+            if (window.__TAURI__) {
+                try {
+                    await window.__TAURI__.core.invoke('open_in_browser');
+                } catch (e) { console.error(e); }
+            }
+        }
+
+        async function handleStart() {
+            setStatus('starting', '正在启动...', '端口 5008');
+            setButtonStates('starting');
+            log('正在启动 Flask 服务...');
+            if (!window.__TAURI__) {
+                log('<span style="color:#ef4444">Tauri API 不可用</span>');
+                return;
+            }
+            try {
+                const result = await window.__TAURI__.core.invoke('start_flask');
+                log(result);
+            } catch (e) {
+                log('<span style="color:#ef4444">启动失败: ' + e + '</span>');
+                setStatus('error', '启动失败', '');
+                setButtonStates('error');
+                return;
+            }
+            startPolling();
+        }
+
+        async function handleStop() {
+            setButtonStates('starting');
+            log('正在停止服务...');
+            if (!window.__TAURI__) {
+                log('<span style="color:#ef4444">Tauri API 不可用</span>');
+                return;
+            }
+            try {
+                const result = await window.__TAURI__.core.invoke('stop_flask');
+                log(result);
+                setStatus('stopped', '服务已停止', '端口 5008');
+                setButtonStates('stopped');
+            } catch (e) {
+                log('<span style="color:#ef4444">停止失败: ' + e + '</span>');
+                if (!await checkHealth()) {
+                    setStatus('stopped', '服务已停止', '端口 5008');
+                    setButtonStates('stopped');
+                }
+            }
+        }
+
+
+        (async () => {
+            if (await pollHealth()) {
+                log('服务已就绪');
+                return;
+            }
+            log('等待 Flask 服务启动...');
+            startPolling();
+        })();
+    </script>
+</body>
+</html>

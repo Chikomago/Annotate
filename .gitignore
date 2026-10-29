@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments (macOS)
+venv-build/
+venv-tauri/
+
+# Virtual environments (Windows)
+venv-build-win/
+venv-tauri-win/
+
+# Nuitka build output
+dist-nuitka/
+
+# Tauri build output
+src-tauri/target/
+
+# Tauri bundled resources (generated at build time)
+src-tauri/resources/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+data/project-images/
+data/statistics.json
+data/users/
+backups/
+exports/
+.hypothesis/
+.pytest_cache/
+*.zip
+*.dmg
+js/*.bak
+nuitka-crash-report.xml
+src-tauri/gen/schemas/

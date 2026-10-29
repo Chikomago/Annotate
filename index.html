@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html class="dark" lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Annotate - 模板标注系统</title>
+    <link href="assets/fonts/fonts.css" rel="stylesheet" />
+    <link href="css/output.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#58b7ec",
+                        "background-light": "#f6f8fa",
+                        "background-dark": "#151b23",
+                        "surface-dark": "#242d39",
+                        "sidebar-dark": "#10151b",
+                        "border-dark": "#384453",
+                        "text-secondary": "#b6c0cc"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0b1418;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3c5358;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #567176;
+        }
+
+        .editor-content:empty:before {
+            content: attr(placeholder);
+            color: #9ca3af;
+        }
+
+        /* 页面切换动画 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .page-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+    <script src="js/theme-manager.js"></script>
+    <link href="css/redesign.css" rel="stylesheet" />
+    <link href="css/deep-canvas.css" rel="stylesheet" />
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white antialiased h-screen flex overflow-hidden">
+    <!-- 移动端侧边栏遮罩 -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"
+        onclick="app?.getSidebar()?.setCollapsed(true)"></div>
+
+    <!-- 移动端顶部导航栏 -->
+    <div id="mobile-header"
+        class="fixed top-0 left-0 right-0 h-14 bg-sidebar-dark border-b border-gray-800 flex items-center justify-between px-4 z-30 md:hidden">
+        <div class="flex items-center gap-3">
+            <h1 class="text-white text-lg font-bold tracking-tight">Annotate</h1>
+        </div>
+        <button id="mobile-menu-btn"
+            class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            onclick="app?.getSidebar()?.toggleCollapse()">
+            <span class="material-symbols-outlined text-[24px]">menu</span>
+        </button>
+    </div>
+
+    <!-- 全局侧边栏 -->
+    <aside id="sidebar"
+        class="sidebar-container w-52 flex-shrink-0 bg-sidebar-dark border-r border-gray-800 flex flex-col justify-between h-full p-4 overflow-y-auto overflow-x-hidden relative transition-all duration-300 z-50 fixed md:relative -translate-x-full md:translate-x-0">
+        <div class="flex flex-col gap-6">
+            <!-- 品牌标题 -->
+            <div class="flex justify-center text-center">
+                <h1 class="sidebar-text whitespace-nowrap text-white text-lg font-bold tracking-tight leading-tight">Annotate</h1>
+            </div>
+
+            <!-- 新建项目按钮 -->
+            <button id="new-project-btn"
+                class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg h-10 px-4 bg-primary transition-colors text-sm font-bold shadow-md">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+                <span class="sidebar-text truncate">新建任务</span>
+            </button>
+
+            <!-- 导航菜单 -->
+            <nav class="flex flex-col gap-2">
+                <!-- 主页 -->
+                <a href="#home" id="nav-home"
+                    class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#283039] cursor-pointer transition-colors">
+                    <span class="material-symbols-outlined text-[22px]">home</span>
+                    <p class="sidebar-text text-sm font-medium truncate">主页</p>
+                </a>
+
+                <!-- 任务列表标题 -->
+                <div class="task-list-title mt-4 px-3">
+                    <p class="sidebar-text text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 truncate">
+                        任务列表</p>
+                </div>
+
+                <!-- 项目列表容器 -->
+                <div id="project-list" class="flex flex-col gap-1">
+                    <!-- 项目列表将通过JavaScript动态渲染 -->
+                </div>
+            </nav>
+        </div>
+
+        <!-- 底部菜单 -->
+        <div class="flex flex-col gap-2 border-t border-gray-800 pt-4">
+            <!-- 更多功能（可展开） -->
+            <div class="more-features-section">
+                <div id="more-features-content" class="hidden pl-4 mt-1">
+                    <p class="sidebar-text text-xs text-gray-500 px-3 py-2">暂无</p>
+                </div>
+            </div>
+            <a href="#settings" id="nav-settings"
+                class="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#283039] cursor-pointer transition-colors">
+                <span class="material-symbols-outlined text-[22px]">settings</span>
+                <p class="sidebar-text text-sm font-medium truncate">设置</p>
+            </a>
+            <button id="sidebar-toggle"
+                class="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-[#283039] cursor-pointer transition-colors w-full mt-2"
+                title="收起侧边栏">
+                <span class="material-symbols-outlined text-[22px]">keyboard_double_arrow_left</span>
+                <p class="sidebar-text text-sm font-medium truncate">收起</p>
+            </button>
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main id="page-container" class="flex-1 flex flex-col h-full overflow-hidden relative pt-14 md:pt-0">
+        <!-- 页面内容将通过路由动态加载 -->
+    </main>
+
+    <!-- 引入JavaScript -->
+    <script src="js/debug-logger.js"></script>
+    <script src="js/performance-optimizer.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/pages.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/project-manager.js"></script>
+    <script src="js/image-uploader.js"></script>
+    <script src="js/canvas-manager.js"></script>
+    <script src="js/rich-text-manager.js"></script>
+    <script src="js/auto-save-manager.js"></script>
+    <script src="js/data-serializer.js"></script>
+    <script src="js/modal-dialog.js"></script>
+    <script src="js/deep-canvas-manager.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

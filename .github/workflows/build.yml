@@ -1,0 +1,75 @@
+name: Build desktop apps
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            artifact: Annotate-macOS-ARM64
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            artifact: Annotate-Windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Python 3.10
+        run: uv python install 3.10
+      - name: Prepare app resources (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          python_home="$("$(uv python find 3.10 --managed-python)" -c 'import sys; print(sys.prefix)')"
+          python3 scripts/prepare-ci-resources.py --python-home "$python_home"
+          uv pip install --python src-tauri/resources/python/bin/python3 --system -r requirements.txt
+          src-tauri/resources/python/bin/python3 -c 'import flask, PIL, psd_tools, docx, numpy'
+      - name: Prepare app resources (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pythonExe = (uv python find 3.10 --managed-python).Trim()
+          $pythonHome = & $pythonExe -c 'import sys; print(sys.prefix)'
+          python scripts/prepare-ci-resources.py --python-home $pythonHome
+          uv pip install --python src-tauri/resources/python/python.exe --system -r requirements.txt
+          src-tauri/resources/python/python.exe -c 'import flask, PIL, psd_tools, docx, numpy'
+      - name: Install Tauri CLI
+        run: npm install --global "@tauri-apps/cli@^2"
+      - name: Check deep drawing tools
+        run: node --test tests/deep-tool-continuity.test.js
+      - name: Build macOS ARM64 app
+        if: runner.os == 'macOS'
+        run: tauri build --ci --target ${{ matrix.target }} --bundles app
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: ditto -c -k --sequesterRsrc --keepParent src-tauri/target/${{ matrix.target }}/release/bundle/macos/Annotate.app Annotate-macOS-ARM64.zip
+      - name: Build Windows x64 installer
+        if: runner.os == 'Windows'
+        run: tauri build --ci --target ${{ matrix.target }} --bundles nsis
+      - name: Upload macOS app
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: Annotate-macOS-ARM64.zip
+          if-no-files-found: error
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+          if-no-files-found: error
