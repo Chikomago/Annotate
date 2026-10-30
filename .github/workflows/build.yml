@@ -2,10 +2,12 @@ name: Build desktop apps
 
 on:
   push:
+    branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -88,3 +90,21 @@ jobs:
           name: ${{ matrix.artifact }}
           path: Annotate-Windows-x64-portable.zip
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download desktop builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Annotate-*
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" dist/*.zip --title "Annotate $RELEASE_TAG" --generate-notes --verify-tag
