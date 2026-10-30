@@ -18,7 +18,7 @@ jobs:
             artifact: Annotate-macOS-ARM64
           - os: windows-2022
             target: x86_64-pc-windows-msvc
-            artifact: Annotate-Windows-x64
+            artifact: Annotate-Windows-x64-portable
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -56,9 +56,24 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: ditto -c -k --sequesterRsrc --keepParent src-tauri/target/${{ matrix.target }}/release/bundle/macos/Annotate.app Annotate-macOS-ARM64.zip
-      - name: Build Windows x64 installer
+      - name: Build Windows x64 app
         if: runner.os == 'Windows'
-        run: tauri build --ci --target ${{ matrix.target }} --bundles nsis
+        run: tauri build --ci --target ${{ matrix.target }} --no-bundle
+      - name: Package Windows portable app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $portable = 'Annotate-Windows-x64-portable'
+          $release = 'src-tauri/target/${{ matrix.target }}/release'
+          New-Item -ItemType Directory -Path "$portable/resources" -Force | Out-Null
+          Copy-Item "$release/Annotate.exe" "$portable/Annotate.exe"
+          Copy-Item 'src-tauri/resources/python' "$portable/resources/python" -Recurse
+          Copy-Item 'src-tauri/resources/app' "$portable/resources/app" -Recurse
+          if (-not (Test-Path "$portable/resources/python/python.exe")) { throw 'Bundled Python is missing' }
+          if (-not (Test-Path "$portable/resources/app/app.py")) { throw 'Bundled app.py is missing' }
+          & "$portable/resources/python/python.exe" -c 'import flask, PIL, psd_tools, docx, numpy'
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Python dependencies cannot be imported' }
+          Compress-Archive -Path $portable -DestinationPath "$portable.zip" -Force
       - name: Upload macOS app
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
@@ -66,10 +81,10 @@ jobs:
           name: ${{ matrix.artifact }}
           path: Annotate-macOS-ARM64.zip
           if-no-files-found: error
-      - name: Upload Windows installer
+      - name: Upload Windows portable app
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+          path: Annotate-Windows-x64-portable.zip
           if-no-files-found: error
