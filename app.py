@@ -137,10 +137,14 @@ def create_app(parent_pid=None):
                     # Windows 特定处理：使用tasklist检查进程是否存在
                     import subprocess
                     result = subprocess.run(
-                        f'tasklist /FI "PID eq {_ppid}"',
-                        capture_output=True, text=True, shell=True
+                        ['tasklist', '/FI', f'PID eq {_ppid}'],
+                        capture_output=True, text=True, encoding='mbcs',
+                        errors='replace'
                     )
-                    if f"{_ppid}" not in result.stdout:
+                    if result.returncode != 0:
+                        print(f"[watchdog] tasklist failed: {result.stderr}", flush=True)
+                        return
+                    if not any(line.split()[1:2] == [str(_ppid)] for line in result.stdout.splitlines()):
                         print("[watchdog] Parent process not found, exiting", flush=True)
                         os._exit(0)
                 else:
