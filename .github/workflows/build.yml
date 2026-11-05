@@ -5,6 +5,11 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      publish_to_release:
+        description: 'Add this build to the existing v2.0.3 Release'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -103,7 +108,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_to_release
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -118,7 +123,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.publish_to_release && 'v2.0.3' || github.ref_name }}
+          ADD_TO_EXISTING_RELEASE: ${{ inputs.publish_to_release }}
         run: |
           python3 scripts/create-update-manifest.py dist "$GH_REPO" "$RELEASE_TAG"
-          gh release create "$RELEASE_TAG" dist/* --title "Annotate $RELEASE_TAG" --generate-notes --verify-tag
+          if [ "$ADD_TO_EXISTING_RELEASE" = "true" ]; then
+            mv dist/Annotate-macOS-ARM64.zip dist/Annotate-macOS-ARM64-updater.zip
+            gh release upload "$RELEASE_TAG" dist/*
+          else
+            gh release create "$RELEASE_TAG" dist/* --title "Annotate $RELEASE_TAG" --generate-notes --verify-tag
+          fi
