@@ -38,6 +38,8 @@ Thumbs.db
 # Environment
 .env
 data/project-images/
+data/pim-template.docx
+/template.docx
 data/statistics.json
 data/users/
 backups/

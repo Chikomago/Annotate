@@ -5,7 +5,6 @@ Word文档导出服务
 处理Word文档导出，包括图像插入和富文本格式保留
 """
 import os
-import sys
 import io
 import base64
 import re
@@ -19,42 +18,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from PIL import Image, ImageDraw, ImageFont
-
-
-def get_resource_path(filename: str) -> str:
-    """
-    获取资源文件路径，优先使用外部文件（可执行文件同目录），其次使用内部资源
-    """
-    # 1. 优先检查可执行文件所在目录（用户提供的外部文件）
-    if getattr(sys, 'frozen', False):
-        # 使用 realpath 获取真实路径，自动处理符号链接
-        exe_path = os.path.realpath(sys.executable)
-        exe_dir = os.path.dirname(exe_path)
-        
-        external_path = os.path.join(exe_dir, filename)
-        if os.path.exists(external_path):
-            return external_path
-            
-    # 2. 检查当前工作目录
-    if os.path.exists(filename):
-        return filename
-        
-    # 3. 检查内部资源（打包进来的文件）
-    if getattr(sys, 'frozen', False):
-        # PyInstaller / Nuitka 临时目录
-        if hasattr(sys, '_MEIPASS'):
-            internal_path = os.path.join(sys._MEIPASS, filename)
-            if os.path.exists(internal_path):
-                return internal_path
-                
-        # 检查 sys.prefix (有些打包工具会用到)
-        if hasattr(sys, 'prefix'):
-            prefix_path = os.path.join(sys.prefix, filename)
-            if os.path.exists(prefix_path):
-                return prefix_path
-
-    # 返回原文件名，让上层处理
-    return filename
+from services.template_store import template_path
 
 
 class ExportService:
@@ -68,15 +32,6 @@ class ExportService:
     JPEG_QUALITY = 85  # JPEG质量 (1-100)，85是质量和大小的平衡点
     MAX_IMAGE_DIMENSION = 2000  # 图像最大尺寸（像素），超过会等比缩放
     
-    def __init__(self, template_path: str = 'template.docx'):
-        """
-        初始化导出服务
-        
-        Args:
-            template_path: Word模板文件路径
-        """
-        self.template_path = get_resource_path(template_path)
-    
     def export_to_word(self, project_data: dict) -> dict:
         """
         导出项目到Word文档
@@ -87,10 +42,10 @@ class ExportService:
             image_quality = project_data.get('imageQuality', 85)
             
             # 加载模板文档
-            if os.path.exists(self.template_path):
-                doc = Document(self.template_path)
-            else:
-                doc = Document()
+            current_template = template_path()
+            if not current_template.is_file():
+                return {'success': False, 'code': 'TEMPLATE_MISSING', 'message': '请先在设置中上传 Word 模板'}
+            doc = Document(current_template)
             
             # 获取或创建表格
             table = self._get_or_create_table(doc)
@@ -155,23 +110,8 @@ class ExportService:
             }
     
     def _get_or_create_table(self, doc: Document):
-        """获取文档中的表格或创建新表格"""
-        if doc.tables:
-            return doc.tables[-1]
-        
-        table = doc.add_table(rows=1, cols=3)
-        table.style = 'Table Grid'
-        
-        header_cells = table.rows[0].cells
-        header_cells[0].text = '序号'
-        header_cells[1].text = '图像'
-        header_cells[2].text = '说明'
-        
-        for i, width in enumerate([Cm(1.5), Cm(10), Cm(6)]):
-            for cell in table.columns[i].cells:
-                cell.width = width
-        
-        return table
+        """使用用户模板中的最后一张表格。"""
+        return doc.tables[-1]
     
     def _add_region_row(self, table, index: int, image_data: str, text_content: str, region_title: str = ''):
         """添加一行区域数据到表格"""

@@ -20,7 +20,7 @@ def main():
     shutil.copytree(args.python_home, resources / 'python', symlinks=True)
     app = resources / 'app'
     app.mkdir()
-    for filename in ('app.py', 'index.html', 'template.docx'):
+    for filename in ('app.py', 'index.html'):
         shutil.copy2(ROOT / filename, app / filename)
     for dirname in ('api', 'services', 'models', 'js', 'css', 'assets'):
         shutil.copytree(ROOT / dirname, app / dirname,

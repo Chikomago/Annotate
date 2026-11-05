@@ -4,8 +4,23 @@
 """
 from flask import Blueprint, request, jsonify, send_file
 from services.export_service import export_service
+from services.template_store import template_path, save_template
 
 bp = Blueprint('export', __name__)
+
+
+@bp.route('/template', methods=['GET', 'POST'])
+def word_template():
+    if request.method == 'GET':
+        return jsonify({'uploaded': template_path().is_file()})
+    file = request.files.get('file')
+    if not file or not (file.filename or '').lower().endswith('.docx'):
+        return jsonify({'message': '请选择 .docx 模板文件'}), 400
+    try:
+        save_template(file.stream)
+    except Exception as error:
+        return jsonify({'message': f'模板无法使用：{error}'}), 400
+    return jsonify({'success': True, 'uploaded': True})
 
 
 @bp.route('', methods=['POST'])
@@ -56,8 +71,9 @@ def export_to_word():
         else:
             return jsonify({
                 'success': False,
-                'message': result.get('message', '导出失败')
-            }), 500
+                'message': result.get('message', '导出失败'),
+                'code': result.get('code')
+            }), 409 if result.get('code') == 'TEMPLATE_MISSING' else 500
             
     except Exception as e:
         return jsonify({

@@ -496,6 +496,14 @@ const Pages = {
                     导出设置
                 </h2>
                 <div class="grid gap-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark shadow-sm">
+                        <div class="flex flex-col gap-1">
+                            <p class="text-slate-900 dark:text-white text-base font-medium">PIM Word 模板</p>
+                            <p id="pim-template-status" class="text-slate-500 dark:text-text-secondary text-xs">正在检查模板…</p>
+                        </div>
+                        <label id="pim-template-upload-label" for="pim-template-input" class="cursor-pointer px-4 py-2 bg-slate-100 dark:bg-[#283039] hover:bg-slate-200 dark:hover:bg-[#3b4754] text-slate-900 dark:text-white rounded-lg text-sm font-medium text-center">上传模板</label>
+                        <input id="pim-template-input" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="sr-only" />
+                    </div>
                     <div class="flex flex-col p-5 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark shadow-sm">
                         <div class="flex items-center justify-between mb-4">
                             <div class="flex flex-col pr-4">

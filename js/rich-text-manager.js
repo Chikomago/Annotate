@@ -485,6 +485,7 @@ class RichTextManager {
         
         
         editor.innerHTML = textBox.content || '';
+        this.hydrateStoredImages(editor);
         
         
         // 绑定编辑事件
@@ -702,11 +703,18 @@ class RichTextManager {
      * @param {HTMLElement} editor - 编辑器元素
      * @param {Blob} blob - 图片Blob
      */
-    insertImage(editor, blob) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+    async insertImage(editor, blob) {
+        const selection = window.getSelection();
+        const savedRange = selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+        const id = await projectManager.saveRichImage(blob);
+        if (!id) {
+            modalDialog.alert('贴图无法保存，请检查浏览器存储空间');
+            return;
+        }
+        {
             const img = document.createElement('img');
-            img.src = e.target.result;
+            img.src = URL.createObjectURL(blob);
+            img.dataset.annotateImageId = id;
             img.className = 'rounded my-2 cursor-pointer hover:ring-2 hover:ring-primary';
             
             // 图片加载完成后设置默认50%大小
@@ -733,16 +741,32 @@ class RichTextManager {
             });
             
             // 插入到光标位置
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                range.insertNode(img);
-                range.collapse(false);
+            if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
+                savedRange.insertNode(img);
+                savedRange.collapse(false);
             } else {
                 editor.appendChild(img);
             }
-        };
-        reader.readAsDataURL(blob);
+        }
+    }
+
+    async persistInlineImages() {
+        const images = this.textBoxWrapper?.querySelectorAll('.text-box-editor img[src^="data:image/"]') || [];
+        for (const img of images) {
+            const blob = await (await fetch(img.src)).blob();
+            const id = await projectManager.saveRichImage(blob);
+            if (!id) throw new Error('贴图无法写入浏览器存储');
+            img.dataset.annotateImageId = id;
+            img.src = URL.createObjectURL(blob);
+        }
+        this.syncContentFromDOM();
+    }
+
+    async hydrateStoredImages(editor) {
+        for (const img of editor.querySelectorAll('img[data-annotate-image-id]')) {
+            const blob = await projectManager.loadRichImage(img.dataset.annotateImageId);
+            if (blob) img.src = URL.createObjectURL(blob);
+        }
     }
     
     /**

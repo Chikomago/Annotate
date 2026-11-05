@@ -66,7 +66,6 @@ if exist "%RESOURCE_DIR%\python\share" rmdir /s /q "%RESOURCE_DIR%\python\share"
 echo [INFO] Copying project files...
 copy /y app.py "%RESOURCE_DIR%\app\" >nul
 copy /y index.html "%RESOURCE_DIR%\app\" >nul
-copy /y template.docx "%RESOURCE_DIR%\app\" >nul
 if exist .env copy /y .env "%RESOURCE_DIR%\app\" >nul
 
 echo [INFO] Copying project directories...
@@ -78,6 +77,7 @@ for %%d in (api services models js css assets data) do (
         echo [INFO] Skipping %%d
     )
 )
+if exist "%RESOURCE_DIR%\app\data\pim-template.docx" del /q "%RESOURCE_DIR%\app\data\pim-template.docx"
 
 echo [OK] Resources assembled
 echo.

@@ -51,6 +51,8 @@ jobs:
         run: npm install --global "@tauri-apps/cli@^2"
       - name: Check deep drawing tools
         run: node --test tests/deep-tool-continuity.test.js
+      - name: Check rich text image storage
+        run: node --test tests/rich-image-storage.test.js
       - name: Build macOS ARM64 app
         if: runner.os == 'macOS'
         run: tauri build --ci --target ${{ matrix.target }} --bundles app

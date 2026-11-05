@@ -168,7 +168,7 @@ class AutoSaveManager {
      * 执行自动保存
      * 需求: 11.1 - 在1分钟内自动保存
      */
-    autoSave() {
+    async autoSave() {
         if (!this.isDirty) {
             return;
         }
@@ -182,7 +182,7 @@ class AutoSaveManager {
         // 调用保存回调
         if (this.onSaveCallback) {
             try {
-                const result = this.onSaveCallback(this.projectId);
+                const result = await this.onSaveCallback(this.projectId);
                 if (result !== false) {
                     this.markClean();
                     // 通知自动保存成功
@@ -211,7 +211,7 @@ class AutoSaveManager {
      * 需求: 11.2 - 点击保存按钮立即保存
      * @returns {boolean} 是否保存成功
      */
-    manualSave() {
+    async manualSave() {
         if (!this.projectId) {
             return false;
         }
@@ -220,7 +220,7 @@ class AutoSaveManager {
         
         if (this.onSaveCallback) {
             try {
-                const result = this.onSaveCallback(this.projectId);
+                const result = await this.onSaveCallback(this.projectId);
                 if (result !== false) {
                     this.markClean();
                     return true;

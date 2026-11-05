@@ -66,6 +66,32 @@ class ProjectManager {
         ]);
     }
 
+    async saveRichImage(blob) {
+        if (!await this.waitForDB() || !this.db) return null;
+        const id = `rich_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        return new Promise(resolve => {
+            try {
+                const tx = this.db.transaction([this.imageStoreName], 'readwrite');
+                tx.objectStore(this.imageStoreName).put({ projectId: id, blob });
+                tx.oncomplete = () => resolve(id);
+                tx.onerror = () => resolve(null);
+                tx.onabort = () => resolve(null);
+            } catch (_) { resolve(null); }
+        });
+    }
+
+    async loadRichImage(id) {
+        if (!await this.waitForDB() || !this.db) return null;
+        return new Promise(resolve => {
+            try {
+                const request = this.db.transaction([this.imageStoreName], 'readonly')
+                    .objectStore(this.imageStoreName).get(id);
+                request.onsuccess = () => resolve(request.result?.blob || null);
+                request.onerror = () => resolve(null);
+            } catch (_) { resolve(null); }
+        });
+    }
+
     /** Deep canvas scenes include image data and live in IndexedDB. */
     async saveDeepScene(projectId, scene) {
         if (!await this.waitForDB() || !this.db) return false;
@@ -241,6 +267,15 @@ class ProjectManager {
             const projects = this._getProjectsFromStorage();
             
             const projectToSave = { ...project };
+            if (projectToSave.textBoxes) {
+                projectToSave.textBoxes = projectToSave.textBoxes.map(box => ({
+                    ...box,
+                    content: (box.content || '').replace(/<img\b[^>]*>/gi, tag =>
+                        /data-annotate-image-id=["'][^"']+["']/i.test(tag)
+                            ? tag.replace(/\s+src=["']blob:[^"']*["']/i, '')
+                            : tag)
+                }));
+            }
             if (projectToSave.imageData) projectToSave.imageInIndexedDB = false;
 
             // 更新或添加项目
@@ -251,7 +286,7 @@ class ProjectManager {
 
             return true;
         } catch (e) {
-            
+            console.error('项目保存失败:', e);
             return false;
         }
     }

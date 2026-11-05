@@ -110,7 +110,6 @@ assemble_resources() {
     print_info "复制项目文件..."
     cp app.py "$RESOURCE_DIR/app/"
     cp index.html "$RESOURCE_DIR/app/"
-    cp template.docx "$RESOURCE_DIR/app/"
 
     # 复制项目目录
     for dir in api services models js css assets data; do
@@ -123,6 +122,7 @@ assemble_resources() {
     done
     # 开发环境的项目图像是用户数据，不应被打进安装包。
     rm -rf "$RESOURCE_DIR/app/data/project-images"
+    rm -f "$RESOURCE_DIR/app/data/pim-template.docx"
 
     # 计算资源大小
     local size=$(du -sh "$RESOURCE_DIR" | awk '{print $1}')

@@ -194,7 +194,7 @@ class App {
      * @param {string} projectId - 项目ID
      * @returns {boolean} 是否保存成功
      */
-    performSave(projectId) {
+    async performSave(projectId) {
         debugLogger.call('performSave', { projectId });
         debugLogger.step('开始保存项目');
 
@@ -212,6 +212,14 @@ class App {
         }
 
         debugLogger.checkpoint('项目加载成功', { projectId, projectName: project.name });
+
+        // 将旧项目的内嵌贴图迁移到 IndexedDB 后再写入项目记录。
+        try {
+            await this.richTextManager?.persistInlineImages();
+        } catch (error) {
+            debugLogger.logError('贴图保存失败', { message: error.message });
+            return false;
+        }
 
         // 收集所有数据
         debugLogger.step('收集项目数据');
@@ -2185,7 +2193,7 @@ class App {
      * 处理手动保存
      * 需求: 11.2
      */
-    handleManualSave() {
+    async handleManualSave() {
         if (!this.currentProjectId) {
             this.showSaveNotification('error', '无法保存：未选择项目');
             return;
@@ -2195,7 +2203,7 @@ class App {
 
         // 使用AutoSaveManager进行保存
         if (this.autoSaveManager) {
-            const success = this.autoSaveManager.manualSave();
+            const success = await this.autoSaveManager.manualSave();
             if (success) {
                 // 保存快照到历史记录
                 if (this.projectManager) {
@@ -2209,7 +2217,7 @@ class App {
             }
         } else {
             // 回退到直接保存
-            const success = this.performSave(this.currentProjectId);
+            const success = await this.performSave(this.currentProjectId);
             if (success) {
                 // 保存快照到历史记录
                 if (this.projectManager) {
@@ -2375,6 +2383,23 @@ class App {
             return;
         }
 
+        try {
+            const templateResponse = await fetch('/api/export/template');
+            if (!templateResponse.ok) throw new Error('无法读取模板状态');
+            const template = await templateResponse.json();
+            if (!template.uploaded) {
+                document.querySelector('.export-notification')?.remove();
+                const goToSettings = await modalDialog.confirm('请先在设置中上传 Word 模板。现在前往设置？', '缺少模板');
+                if (goToSettings) this.router.navigate('settings');
+                debugLogger.return('handleExport', false);
+                return;
+            }
+        } catch (error) {
+            this.showExportNotification('error', '无法检查模板，请确认服务已启动');
+            debugLogger.return('handleExport', false);
+            return;
+        }
+
         // 浏览器数据库异常时不能让导出按钮无限等待。
         debugLogger.step('加载项目数据');
         const storedProject = this.projectManager.loadProject(this.currentProjectId);
@@ -2438,6 +2463,7 @@ class App {
             // 添加图片质量参数
             const imageQuality = parseInt(localStorage.getItem('imageQuality') || '85');
             exportData.imageQuality = imageQuality;
+            await this.restoreRichImagesForExport(exportData.textBoxes);
 
             debugLogger.checkpoint('导出数据收集完成', {
                 projectName: exportData.projectName,
@@ -2503,6 +2529,13 @@ class App {
             } else {
                 // 尝试解析错误信息
                 const result = await response.json();
+                if (result.code === 'TEMPLATE_MISSING') {
+                    document.querySelector('.export-notification')?.remove();
+                    const goToSettings = await modalDialog.confirm('请先在设置中上传 Word 模板。现在前往设置？', '缺少模板');
+                    if (goToSettings) this.router.navigate('settings');
+                    debugLogger.return('handleExport', false);
+                    return;
+                }
                 debugLogger.logError('导出失败：API返回错误', {
                     status: response.status,
                     message: result.message
@@ -2525,6 +2558,26 @@ class App {
      * @param {Object} project - 项目数据
      * @returns {Object} 导出数据
      */
+    async restoreRichImagesForExport(textBoxes) {
+        for (const box of textBoxes) {
+            if (!box.content?.includes('data-annotate-image-id')) continue;
+            const container = document.createElement('div');
+            container.innerHTML = box.content;
+            for (const img of container.querySelectorAll('img[data-annotate-image-id]')) {
+                const blob = await this.projectManager.loadRichImage(img.dataset.annotateImageId);
+                if (!blob) throw new Error('富文本贴图无法读取，请检查浏览器数据');
+                img.src = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(blob);
+                });
+                img.removeAttribute('data-annotate-image-id');
+            }
+            box.content = container.innerHTML;
+        }
+    }
+
     collectExportData(project) {
         const exportData = {
             projectId: project.id,
@@ -2564,9 +2617,9 @@ class App {
 
         // 收集富文本数据
         if (this.richTextManager) {
-            exportData.textBoxes = this.richTextManager.exportTextBoxes();
+            exportData.textBoxes = this.richTextManager.exportTextBoxes().map(box => ({ ...box }));
         } else if (project.textBoxes) {
-            exportData.textBoxes = project.textBoxes;
+            exportData.textBoxes = project.textBoxes.map(box => ({ ...box }));
         }
 
         return exportData;
@@ -2807,6 +2860,7 @@ class App {
             // 初始化图片质量滑块
             debugLogger.step('初始化图片质量滑块');
             this.initImageQualitySlider();
+            this.initPimTemplateSetting();
 
             debugLogger.checkpoint('设置页面初始化完成');
             debugLogger.return('initSettingsPage');
@@ -4074,6 +4128,47 @@ class App {
     /**
      * 初始化图片质量滑块
      */
+    async initPimTemplateSetting() {
+        const input = document.getElementById('pim-template-input');
+        const status = document.getElementById('pim-template-status');
+        const uploadLabel = document.getElementById('pim-template-upload-label');
+        if (!input || !status || !uploadLabel) return;
+        try {
+            const response = await fetch('/api/export/template');
+            if (!response.ok) throw new Error('无法读取模板状态');
+            const data = await response.json();
+            if (status.isConnected) {
+                status.textContent = data.uploaded ? '已上传' : '未上传模板，PIM 导出前请先上传 .docx 文件';
+                uploadLabel.textContent = data.uploaded ? '重新上传' : '上传模板';
+            }
+        } catch (error) {
+            if (status.isConnected) status.textContent = '无法读取模板状态，请检查服务连接';
+        }
+        input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.docx')) {
+                status.textContent = '请选择 .docx 模板文件';
+                input.value = '';
+                return;
+            }
+            const form = new FormData();
+            form.append('file', file);
+            status.textContent = '正在上传模板…';
+            try {
+                const response = await fetch('/api/export/template', { method: 'POST', body: form });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || '上传失败');
+                status.textContent = '已上传';
+                uploadLabel.textContent = '重新上传';
+            } catch (error) {
+                status.textContent = error.message || '上传失败，请重新选择文件';
+            } finally {
+                input.value = '';
+            }
+        });
+    }
+
     initImageQualitySlider() {
         const slider = document.getElementById('image-quality-slider');
         const valueDisplay = document.getElementById('image-quality-value');
