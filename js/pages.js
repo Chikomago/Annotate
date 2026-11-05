@@ -99,6 +99,22 @@ const Pages = {
                                         <div class="w-2 h-2 rounded-full bg-primary"></div>
                                     </div>
                                     <div class="flex flex-col gap-3">
+                                        <span class="text-sm font-bold text-primary leading-6">2.0.3 · 2026.11.05</span>
+                                        <div class="bg-[#283039]/50 rounded-lg p-4 border border-gray-800">
+                                            <ul class="space-y-2 text-sm text-gray-300">
+                                                <li>修复 PIM 富文本贴图后保存失败的问题</li>
+                                                <li>Word 模板改为在设置中上传，上传后立即生效</li>
+                                                <li>缺少模板时提示上传，并修复导出中提示未消失的问题</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="relative pl-8 pb-6">
+                                    <div class="absolute left-[11px] top-6 bottom-0 w-px bg-gray-700/60"></div>
+                                    <div class="absolute left-0 top-0 w-6 h-6 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center z-10">
+                                        <div class="w-2 h-2 rounded-full bg-primary"></div>
+                                    </div>
+                                    <div class="flex flex-col gap-3">
                                         <span class="text-sm font-bold text-primary leading-6">2.0.0 · 2026.10.12</span>
                                         <div class="bg-[#283039]/50 rounded-lg p-4 border border-gray-800">
                                             <ul class="space-y-2 text-sm text-gray-300">
@@ -192,7 +208,7 @@ const Pages = {
                                                 </li>
                                                 <li class="flex items-start gap-2">
                                                     <span class="w-1.5 h-1.5 rounded-full bg-gray-500 mt-1.5 flex-shrink-0"></span>
-                                                    <span>修复模板路径读取问题，并内置模板文件</span>
+                                                    <span>修复模板路径读取问题</span>
                                                 </li>
                                             </ul>
                                         </div>
@@ -561,7 +577,7 @@ const Pages = {
                         <div class="flex flex-col">
                             <p class="text-slate-900 dark:text-white text-base font-medium">版本</p>
                         </div>
-                        <p class="text-slate-500 dark:text-text-secondary text-sm">2.0.0</p>
+                        <p class="text-slate-500 dark:text-text-secondary text-sm">2.0.3</p>
                     </div>
                     <div class="p-5 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-border-dark shadow-sm">
                         <p class="text-slate-500 dark:text-text-secondary text-sm text-center">
