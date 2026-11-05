@@ -1,5 +1,6 @@
 mod models;
 mod server;
+mod updates;
 
 use models::AppState;
 use server::{is_flask_running, is_port_in_use, kill_port_process, spawn_flask, get_app_dir, cleanup_flask};
@@ -18,6 +19,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::PendingUpdate::default())
         .manage(AppState::new(port))
         .invoke_handler(tauri::generate_handler![
             server::start_flask,
@@ -26,6 +29,8 @@ pub fn run() {
             server::open_in_browser,
             server::get_status,
             server::kill_port,
+            updates::check_for_update,
+            updates::install_update,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -145,6 +145,9 @@
             </div>
         </div>
 
+        <button class="btn btn-secondary" id="btn-update" onclick="handleUpdate()" style="width:100%;margin-top:8px;">检测更新</button>
+        <p id="update-status" role="status" style="min-height:18px;margin-top:8px;color:#9dabb9;font-size:12px;text-align:center;"></p>
+
         <hr class="divider" />
         <p class="section-title">日志</p>
         <div class="log-area" id="log-area">
@@ -158,6 +161,29 @@
         const FLASK_URL = `http://127.0.0.1:${FLASK_PORT}`;
         const HEALTH_URL = `${FLASK_URL}/api/health`;
         let healthTimer = null;
+
+        async function handleUpdate() {
+            const button = document.getElementById('btn-update');
+            const status = document.getElementById('update-status');
+            button.disabled = true;
+            status.textContent = '正在检测更新…';
+            try {
+                const version = await window.__TAURI__.core.invoke('check_for_update');
+                if (!version) {
+                    status.textContent = '已是最新版本';
+                    return;
+                }
+                status.textContent = `发现 ${version}，安装时应用会退出，请先保存浏览器中的编辑内容。`;
+                if (!confirm(`安装 ${version}？请先保存浏览器中的编辑内容。安装时应用会退出。`)) return;
+                status.textContent = '正在下载并安装更新…';
+                await window.__TAURI__.core.invoke('install_update');
+                status.textContent = '更新已安装，请重启应用';
+            } catch (error) {
+                status.textContent = `更新失败：${String(error)}`;
+            } finally {
+                button.disabled = false;
+            }
+        }
 
         function log(msg) {
             const area = document.getElementById('log-area');

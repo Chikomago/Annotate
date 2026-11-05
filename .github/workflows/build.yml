@@ -20,7 +20,7 @@ jobs:
             artifact: Annotate-macOS-ARM64
           - os: windows-2022
             target: x86_64-pc-windows-msvc
-            artifact: Annotate-Windows-x64-portable
+            artifact: Annotate-Windows-x64-installer
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -55,42 +55,51 @@ jobs:
         run: node --test tests/rich-image-storage.test.js
       - name: Build macOS ARM64 app
         if: runner.os == 'macOS'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: tauri build --ci --target ${{ matrix.target }} --bundles app
       - name: Package macOS app
         if: runner.os == 'macOS'
         shell: bash
         run: ditto -c -k --sequesterRsrc --keepParent src-tauri/target/${{ matrix.target }}/release/bundle/macos/Annotate.app Annotate-macOS-ARM64.zip
+      - name: Collect macOS updater files
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/macos/Annotate.app.tar.gz Annotate-macOS-ARM64.app.tar.gz
+          cp src-tauri/target/${{ matrix.target }}/release/bundle/macos/Annotate.app.tar.gz.sig Annotate-macOS-ARM64.app.tar.gz.sig
       - name: Build Windows x64 app
         if: runner.os == 'Windows'
-        run: tauri build --ci --target ${{ matrix.target }} --no-bundle
-      - name: Package Windows portable app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: tauri build --ci --target ${{ matrix.target }} --bundles nsis
+      - name: Collect Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $portable = 'Annotate-Windows-x64-portable'
-          $release = 'src-tauri/target/${{ matrix.target }}/release'
-          New-Item -ItemType Directory -Path "$portable/resources" -Force | Out-Null
-          Copy-Item "$release/Annotate.exe" "$portable/Annotate.exe"
-          Copy-Item 'src-tauri/resources/python' "$portable/resources/python" -Recurse
-          Copy-Item 'src-tauri/resources/app' "$portable/resources/app" -Recurse
-          if (-not (Test-Path "$portable/resources/python/python.exe")) { throw 'Bundled Python is missing' }
-          if (-not (Test-Path "$portable/resources/app/app.py")) { throw 'Bundled app.py is missing' }
-          & "$portable/resources/python/python.exe" -c 'import flask, PIL, psd_tools, docx, numpy'
-          if ($LASTEXITCODE -ne 0) { throw 'Bundled Python dependencies cannot be imported' }
-          Compress-Archive -Path $portable -DestinationPath "$portable.zip" -Force
+          $installer = Get-ChildItem 'src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer is missing' }
+          if (-not (Test-Path "$($installer.FullName).sig")) { throw 'Updater signature is missing' }
+          Copy-Item $installer.FullName 'Annotate-Windows-x64-setup.exe'
+          Copy-Item "$($installer.FullName).sig" 'Annotate-Windows-x64-setup.exe.sig'
       - name: Upload macOS app
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: Annotate-macOS-ARM64.zip
+          path: |
+            Annotate-macOS-ARM64.zip
+            Annotate-macOS-ARM64.app.tar.gz
+            Annotate-macOS-ARM64.app.tar.gz.sig
           if-no-files-found: error
-      - name: Upload Windows portable app
+      - name: Upload Windows installer
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: Annotate-Windows-x64-portable.zip
+          path: |
+            Annotate-Windows-x64-setup.exe
+            Annotate-Windows-x64-setup.exe.sig
           if-no-files-found: error
 
   release:
@@ -98,6 +107,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Download desktop builds
         uses: actions/download-artifact@v4
         with:
@@ -109,4 +119,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" dist/*.zip --title "Annotate $RELEASE_TAG" --generate-notes --verify-tag
+        run: |
+          python3 scripts/create-update-manifest.py dist "$GH_REPO" "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" dist/* --title "Annotate $RELEASE_TAG" --generate-notes --verify-tag
