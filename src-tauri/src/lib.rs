@@ -6,6 +6,8 @@ use models::AppState;
 use server::{is_flask_running, is_port_in_use, kill_port_process, spawn_flask, get_app_dir, cleanup_flask};
 use tauri::Manager;
 use std::path::PathBuf;
+use std::collections::VecDeque;
+use std::sync::{Mutex, OnceLock};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +31,7 @@ pub fn run() {
             server::open_in_browser,
             server::get_status,
             server::kill_port,
+            get_startup_logs,
             updates::check_for_update,
             updates::install_update,
         ])
@@ -81,8 +84,41 @@ pub fn run() {
         });
 }
 
-/// 写日志到文件（用于 release 模式调试）
+const MAX_STARTUP_LOGS: usize = 300;
+static STARTUP_LOGS: OnceLock<Mutex<(usize, VecDeque<String>)>> = OnceLock::new();
+
+fn startup_logs() -> &'static Mutex<(usize, VecDeque<String>)> {
+    STARTUP_LOGS.get_or_init(|| Mutex::new((0, VecDeque::new())))
+}
+
+#[derive(serde::Serialize)]
+struct StartupLogBatch {
+    next_cursor: usize,
+    lines: Vec<String>,
+}
+
+#[tauri::command]
+fn get_startup_logs(cursor: usize) -> StartupLogBatch {
+    let logs = startup_logs().lock().unwrap_or_else(|error| error.into_inner());
+    let first = logs.0;
+    let skip = cursor.saturating_sub(first);
+    StartupLogBatch {
+        next_cursor: first + logs.1.len(),
+        lines: logs.1.iter().skip(skip).cloned().collect(),
+    }
+}
+
+/// 写日志到文件，并保留本次启动的最近日志供启动器展示。
 pub fn log_to_file(msg: &str) {
+    {
+        let mut logs = startup_logs().lock().unwrap_or_else(|error| error.into_inner());
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        logs.1.push_back(format!("[{}] {}", timestamp, msg));
+        if logs.1.len() > MAX_STARTUP_LOGS {
+            logs.1.pop_front();
+            logs.0 += 1;
+        }
+    }
     use std::io::Write;
     let log_path = std::env::current_exe()
         .map(|p| p.parent().unwrap_or(std::path::Path::new(".")).join("annotate-debug.log"))
@@ -115,9 +151,10 @@ fn auto_start_flask(app: &tauri::AppHandle, port: u16) {
     let state = app.state::<AppState>();
     let app_dir = clean_path(&get_app_dir(app));
 
-    log_to_file(&format!("auto_start_flask, app_dir: {:?}", app_dir));
+    log_to_file(&format!("准备启动服务，端口 {}，资源目录：{}", port, app_dir.display()));
 
     // 已有 Flask 在运行 → 复用
+    log_to_file(&format!("检查端口 {} 上的服务", port));
     if is_flask_running(port) {
         *state.flask_state.lock().unwrap() = models::FlaskState::Running;
         log_to_file(&format!("Flask already running on port {}, reusing", port));
@@ -136,6 +173,7 @@ fn auto_start_flask(app: &tauri::AppHandle, port: u16) {
     }
 
     // 启动 Flask 子进程
+    log_to_file("检查 Python 与 app.py，准备启动子进程");
     match spawn_flask(&app_dir, port) {
         Ok(child) => {
             let pgid = child.id() as i32;

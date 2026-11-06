@@ -15,7 +15,9 @@
         "height": 560,
         "resizable": false,
         "center": true,
-        "url": "loading.html"
+        "url": "loading.html",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
